@@ -125,7 +125,10 @@ def main():
                     mlflow.log_param(param_name, param_value)
 
             # Log model and vectorizer
-            mlflow.sklearn.log_model(model, "lgbm_model")
+            mlflow.lightgbm.log_model(
+                lgb_model=model,
+                name="lgbm_model_artifact"
+            )
             mlflow.log_artifact(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
 
             # Load test data
