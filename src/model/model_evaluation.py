@@ -157,10 +157,10 @@ def main():
             # Log model to MLflow
             mlflow.lightgbm.log_model(
                 lgb_model=model,
-                name="yt_chrome_plugin_model"
+                name="lightgbm_model",
             )
 
-            model_path = "yt_chrome_plugin_model"
+            model_path = "lightgbm_model"
 
             # Save experiment information
             save_model_info(
