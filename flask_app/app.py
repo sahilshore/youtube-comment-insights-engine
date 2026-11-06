@@ -90,8 +90,8 @@ def predict_with_timestamps():
         # Convert predictions to strings for consistency
         predictions = [str(pred) for pred in predictions]
     except Exception as e:
-        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
-    
+            app.logger.exception("Prediction failed")
+            return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
     # Return the response with original comments, predicted sentiments, and timestamps
     response = [{"comment": comment, "sentiment": sentiment, "timestamp": timestamp} for comment, sentiment, timestamp in zip(comments, predictions, timestamps)]
     return jsonify(response)
@@ -117,7 +117,8 @@ def predict():
         # Convert predictions to strings for consistency
         predictions = [str(pred) for pred in predictions]
     except Exception as e:
-        return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+            app.logger.exception("Prediction failed")
+            return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
     # Return the response with original comments and predicted sentiments
     response = [{"comment": comment, "sentiment": sentiment} for comment, sentiment in zip(comments, predictions)]
