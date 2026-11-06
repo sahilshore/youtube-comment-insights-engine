@@ -100,18 +100,22 @@ jobs:
           AWS_DEFAULT_REGION: ap-south-1
         run: python Scripts/promote_model.py
 
-      - name: Start Flask App
+      - name: Start Flask and Run API Tests
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ap-south-1
         run: |
-          nohup python flask_app/app.py > flask_startup.log 2>&1 &
-          echo "Waiting 10 seconds for Flask to boot..."
+          # 1. Start Flask in the background and save all output to a text file
+          python flask_app/app.py > flask_logs.txt 2>&1 &
+          
+          # 2. Pause for 10 seconds to give Flask time to start
           sleep 10
-          echo "Flask startup logs:"
-          cat flask_startup.log
-
-      - name: Run Flask API tests
-        run: |
+          
+          # 3. Print the Flask logs to the console so you can see if it crashed
+          echo "========== FLASK STARTUP LOGS =========="
+          cat flask_logs.txt
+          echo "========================================"
+          
+          # 4. Run the tests
           pytest Scripts/test_flask_api.py
