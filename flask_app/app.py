@@ -21,6 +21,10 @@ import matplotlib.dates as mdates
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "healthy"}), 200
+
 # Define the preprocessing function
 def preprocess_comment(comment):
     """Apply preprocessing transformations to a comment."""
@@ -284,4 +288,4 @@ def generate_trend_graph():
         return jsonify({"error": f"Trend graph generation failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
