@@ -119,58 +119,81 @@ def save_model_info(run_id: str, model_path: str, file_path: str) -> None:
         raise
 
 def main():
-    mlflow.set_tracking_uri("http://ec2-3-111-37-136.ap-south-1.compute.amazonaws.com:5000/")
+    mlflow.set_tracking_uri(
+        "http://ec2-3-111-37-136.ap-south-1.compute.amazonaws.com:5000/"
+    )
 
     mlflow.set_experiment('dvc-pipeline-runs')
-    
+
     with mlflow.start_run() as run:
         try:
-            # Load parameters from YAML file
-            root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
-            params = load_params(os.path.join(root_dir, 'params.yaml'))
+            # Load parameters
+            root_dir = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '../../')
+            )
+
+            params = load_params(
+                os.path.join(root_dir, 'params.yaml')
+            )
 
             # Log parameters
             for key, value in params.items():
                 mlflow.log_param(key, value)
-            
+
             # Load model and vectorizer
-            model = load_model(os.path.join(root_dir, 'yt_chrome_plugin_model.pkl'))
-            vectorizer = load_vectorizer(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
+            model = load_model(
+                os.path.join(root_dir, 'lgbm_model.pkl')
+            )
+
+            vectorizer = load_vectorizer(
+                os.path.join(root_dir, 'tfidf_vectorizer.pkl')
+            )
 
             # Log model parameters
             if hasattr(model, 'get_params'):
                 for param_name, param_value in model.get_params().items():
                     mlflow.log_param(param_name, param_value)
 
-            # Log model
+            # Log model to MLflow
             mlflow.lightgbm.log_model(
                 lgb_model=model,
                 name="yt_chrome_plugin_model"
             )
 
-            # Use relative artifact path
             model_path = "yt_chrome_plugin_model"
 
-            # Save model info
+            # Save experiment information
             save_model_info(
                 run.info.run_id,
                 model_path,
-                'experiment_info.json'
+                os.path.join(root_dir, 'experiment_info.json')
             )
 
-            mlflow.log_artifact(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
+            # Log vectorizer
+            mlflow.log_artifact(
+                os.path.join(root_dir, 'tfidf_vectorizer.pkl')
+            )
 
             # Load test data
-            test_data = load_data(os.path.join(root_dir, 'data/interim/test_processed.csv'))
+            test_data = load_data(
+                os.path.join(root_dir, 'data/interim/test_processed.csv')
+            )
 
             # Prepare test data
-            X_test_tfidf = vectorizer.transform(test_data['clean_comment'].values)
+            X_test_tfidf = vectorizer.transform(
+                test_data['clean_comment'].values
+            )
+
             y_test = test_data['category'].values
 
-            # Evaluate model and get metrics
-            report, cm = evaluate_model(model, X_test_tfidf, y_test)
+            # Evaluate model
+            report, cm = evaluate_model(
+                model,
+                X_test_tfidf,
+                y_test
+            )
 
-            # Log classification report metrics for the test data
+            # Log metrics
             for label, metrics in report.items():
                 if isinstance(metrics, dict):
                     mlflow.log_metrics({
@@ -182,14 +205,15 @@ def main():
             # Log confusion matrix
             log_confusion_matrix(cm, "Test Data")
 
-            # Add important tags
+            # Set tags
             mlflow.set_tag("model_type", "LightGBM")
             mlflow.set_tag("task", "Sentiment Analysis")
             mlflow.set_tag("dataset", "YouTube Comments")
 
         except Exception as e:
             logger.error(f"Failed to complete model evaluation: {e}")
-            print(f"Error: {e}")
+            raise
+
 
 if __name__ == '__main__':
-    main()                        
+    main()
