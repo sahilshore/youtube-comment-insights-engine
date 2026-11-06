@@ -12,6 +12,7 @@ import os
 import json
 import matplotlib.pyplot as plt
 import seaborn as sns
+from mlflow.models import infer_signature
 
 # logging configuration
 logger = logging.getLogger('model_evaluation')
@@ -127,74 +128,50 @@ def main():
 
     with mlflow.start_run() as run:
         try:
-            # Load parameters
-            root_dir = os.path.abspath(
-                os.path.join(os.path.dirname(__file__), '../../')
-            )
-
-            params = load_params(
-                os.path.join(root_dir, 'params.yaml')
-            )
+            # Load parameters from YAML file
+            root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../'))
+            params = load_params(os.path.join(root_dir, 'params.yaml'))
 
             # Log parameters
             for key, value in params.items():
                 mlflow.log_param(key, value)
 
             # Load model and vectorizer
-            model = load_model(
-                os.path.join(root_dir, 'lgbm_model.pkl')
-            )
+            model = load_model(os.path.join(root_dir, 'lgbm_model.pkl'))
+            vectorizer = load_vectorizer(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
 
-            vectorizer = load_vectorizer(
-                os.path.join(root_dir, 'tfidf_vectorizer.pkl')
-            )
-
-            # Log model parameters
-            if hasattr(model, 'get_params'):
-                for param_name, param_value in model.get_params().items():
-                    mlflow.log_param(param_name, str(param_value))
-
-            # Log LightGBM model to MLflow
-            model_info = mlflow.lightgbm.log_model(
-                lgb_model=model,
-                artifact_path="lgbm_model"
-            )
-
-            # Store model artifact path
-            model_path = model_info.artifact_path
-
-            # Save experiment information
-            save_model_info(
-                run.info.run_id,
-                model_path,
-                os.path.join(root_dir, 'experiment_info.json')
-            )
-
-            # Log vectorizer
-            mlflow.log_artifact(
-                os.path.join(root_dir, 'tfidf_vectorizer.pkl')
-            )
-
-            # Load test data
-            test_data = load_data(
-                os.path.join(root_dir, 'data/interim/test_processed.csv')
-            )
+            # Load test data for signature inference
+            test_data = load_data(os.path.join(root_dir, 'data/interim/test_processed.csv'))
 
             # Prepare test data
-            X_test_tfidf = vectorizer.transform(
-                test_data['clean_comment'].values
-            )
-
+            X_test_tfidf = vectorizer.transform(test_data['clean_comment'].values)
             y_test = test_data['category'].values
 
-            # Evaluate model
-            report, cm = evaluate_model(
+            # Create a DataFrame for signature inference (using first few rows as an example)
+            input_example = pd.DataFrame(X_test_tfidf.toarray()[:5], columns=vectorizer.get_feature_names_out())  # <--- Added for signature
+
+            # Infer the signature
+            signature = infer_signature(input_example, model.predict(X_test_tfidf[:5]))  # <--- Added for signature
+
+            # Log model with signature
+            mlflow.sklearn.log_model(
                 model,
-                X_test_tfidf,
-                y_test
+                "lgbm_model",
+                signature=signature,  # <--- Added for signature
+                input_example=input_example  # <--- Added input example
             )
 
-            # Log metrics
+            # Save model info
+            model_path = "lgbm_model"
+            save_model_info(run.info.run_id, model_path, 'experiment_info.json')
+
+            # Log the vectorizer as an artifact
+            mlflow.log_artifact(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
+            
+            # Evaluate model and get metrics
+            report, cm = evaluate_model(model, X_test_tfidf, y_test)
+
+            # Log classification report metrics for the test data
             for label, metrics in report.items():
                 if isinstance(metrics, dict):
                     mlflow.log_metrics({
@@ -206,15 +183,14 @@ def main():
             # Log confusion matrix
             log_confusion_matrix(cm, "Test Data")
 
-            # Set tags
+            # Add important tags
             mlflow.set_tag("model_type", "LightGBM")
             mlflow.set_tag("task", "Sentiment Analysis")
             mlflow.set_tag("dataset", "YouTube Comments")
 
         except Exception as e:
             logger.error(f"Failed to complete model evaluation: {e}")
-            raise
-
+            print(f"Error: {e}")
 
 if __name__ == '__main__':
-    main()
+    main()            
