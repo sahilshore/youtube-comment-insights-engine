@@ -152,15 +152,16 @@ def main():
             # Log model parameters
             if hasattr(model, 'get_params'):
                 for param_name, param_value in model.get_params().items():
-                    mlflow.log_param(param_name, param_value)
+                    mlflow.log_param(param_name, str(param_value))
 
-            # Log model to MLflow
-            mlflow.lightgbm.log_model(
+            # Log LightGBM model to MLflow
+            model_info = mlflow.lightgbm.log_model(
                 lgb_model=model,
-                name="lgbm_model",
+                artifact_path="lgbm_model"
             )
 
-            model_path = "lgbm_model"
+            # Store model artifact path
+            model_path = model_info.artifact_path
 
             # Save experiment information
             save_model_info(
