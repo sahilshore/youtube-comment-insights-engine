@@ -145,11 +145,11 @@ def main():
             # Log model
             mlflow.lightgbm.log_model(
                 lgb_model=model,
-                name="lgbm_model_artifact"
+                name="yt_chrome_plugin_model"
             )
 
             # Use relative artifact path
-            model_path = "lgbm_model_artifact"
+            model_path = "yt_chrome_plugin_model"
 
             # Save model info
             save_model_info(
