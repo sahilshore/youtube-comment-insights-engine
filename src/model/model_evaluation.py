@@ -134,7 +134,7 @@ def main():
                 mlflow.log_param(key, value)
             
             # Load model and vectorizer
-            model = load_model(os.path.join(root_dir, 'lgbm_model.pkl'))
+            model = load_model(os.path.join(root_dir, 'yt_chrome_plugin_model.pkl'))
             vectorizer = load_vectorizer(os.path.join(root_dir, 'tfidf_vectorizer.pkl'))
 
             # Log model parameters
