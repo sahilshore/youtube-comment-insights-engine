@@ -5,7 +5,7 @@ matplotlib.use('Agg')  # Use non-interactive backend before importing pyplot
 
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-import io  
+import io
 import matplotlib.pyplot as plt
 from wordcloud import WordCloud
 import mlflow
@@ -20,10 +20,6 @@ import matplotlib.dates as mdates
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({"status": "healthy"}), 200
 
 # Define the preprocessing function
 def preprocess_comment(comment):
@@ -288,4 +284,4 @@ def generate_trend_graph():
         return jsonify({"error": f"Trend graph generation failed: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)
