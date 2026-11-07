@@ -66,62 +66,140 @@ def load_model_and_vectorizer(model_name, model_version, vectorizer_path):
 # Initialize the model and vectorizer
 model, vectorizer = load_model_and_vectorizer("yt_chrome_plugin_model", "13", "./tfidf_vectorizer.pkl")  # Update paths and versions as needed
 
+# Convert comments into the DataFrame format
+# expected by the MLflow model.
+def predict_comments(comments, batch_size=256):
+
+    all_predictions = []
+
+    # Get the exact feature names from the trained TF-IDF vectorizer
+    feature_names = vectorizer.get_feature_names_out()
+
+    for start in range(0, len(comments), batch_size):
+
+        batch_comments = comments[start:start + batch_size]
+
+        # Preprocess comments
+        preprocessed_comments = [
+            preprocess_comment(comment)
+            for comment in batch_comments
+        ]
+
+        # Transform comments into a sparse TF-IDF matrix
+        transformed_comments = vectorizer.transform(
+            preprocessed_comments
+        )
+
+        # Validate feature dimensions
+        if transformed_comments.shape[1] != len(feature_names):
+            raise ValueError(
+                f"Feature mismatch: vectorizer produced "
+                f"{transformed_comments.shape[1]} features, "
+                f"but expected {len(feature_names)}."
+            )
+
+        # Convert sparse matrix into a Pandas DataFrame
+        # with the exact feature names expected by MLflow
+        transformed_df = pd.DataFrame(
+            transformed_comments.toarray(),
+            columns=feature_names
+        )
+
+        # Generate predictions
+        batch_predictions = model.predict(transformed_df)
+
+        # Convert predictions into a Python list
+        batch_predictions = np.asarray(
+            batch_predictions
+        ).reshape(-1).tolist()
+
+        all_predictions.extend(batch_predictions)
+
+    return all_predictions
+
 @app.route('/predict_with_timestamps', methods=['POST'])
 def predict_with_timestamps():
-    data = request.json
+
+    data = request.get_json()
     comments_data = data.get('comments')
-    
+
     if not comments_data:
         return jsonify({"error": "No comments provided"}), 400
 
     try:
-        comments = [item['text'] for item in comments_data]
-        timestamps = [item['timestamp'] for item in comments_data]
 
-        # Preprocess each comment before vectorizing
-        preprocessed_comments = [preprocess_comment(comment) for comment in comments]
-        
-        # Transform comments using the vectorizer
-        transformed_comments = vectorizer.transform(preprocessed_comments)
-        
-        # Make predictions
-        predictions = model.predict(transformed_comments).tolist()  # Convert to list
-        
-        # Convert predictions to strings for consistency
+        comments = [
+            item['text']
+            for item in comments_data
+        ]
+
+        timestamps = [
+            item['timestamp']
+            for item in comments_data
+        ]
+
+        # Generate predictions using the same helper function
+        predictions = predict_comments(comments)
+
+        # Convert predictions to strings
         predictions = [str(pred) for pred in predictions]
+
     except Exception as e:
-            app.logger.exception("Prediction failed")
-            return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
-    # Return the response with original comments, predicted sentiments, and timestamps
-    response = [{"comment": comment, "sentiment": sentiment, "timestamp": timestamp} for comment, sentiment, timestamp in zip(comments, predictions, timestamps)]
+
+        app.logger.exception("Prediction failed")
+
+        return jsonify({
+            "error": f"Prediction failed: {str(e)}"
+        }), 500
+
+    response = [
+        {
+            "comment": comment,
+            "sentiment": sentiment,
+            "timestamp": timestamp
+        }
+        for comment, sentiment, timestamp in zip(
+            comments,
+            predictions,
+            timestamps
+        )
+    ]
+
     return jsonify(response)
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.json
+
+    data = request.get_json()
     comments = data.get('comments')
 
     if not comments:
         return jsonify({"error": "No comments provided"}), 400
 
     try:
-        # Preprocess each comment before vectorizing
-        preprocessed_comments = [preprocess_comment(comment) for comment in comments]
 
-        # Transform comments using the vectorizer
-        transformed_comments = vectorizer.transform(preprocessed_comments)
+        # Generate predictions using the helper function
+        predictions = predict_comments(comments)
 
-        # Make predictions
-        predictions = model.predict(transformed_comments).tolist()  # Convert to list
-        
-        # Convert predictions to strings for consistency
+        # Convert predictions to strings
         predictions = [str(pred) for pred in predictions]
-    except Exception as e:
-            app.logger.exception("Prediction failed")
-            return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
 
-    # Return the response with original comments and predicted sentiments
-    response = [{"comment": comment, "sentiment": sentiment} for comment, sentiment in zip(comments, predictions)]
+    except Exception as e:
+
+        app.logger.exception("Prediction failed")
+
+        return jsonify({
+            "error": f"Prediction failed: {str(e)}"
+        }), 500
+
+    response = [
+        {
+            "comment": comment,
+            "sentiment": sentiment
+        }
+        for comment, sentiment in zip(comments, predictions)
+    ]
+
     return jsonify(response)
 
 @app.route('/generate_chart', methods=['POST'])
