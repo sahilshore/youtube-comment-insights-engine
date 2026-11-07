@@ -53,18 +53,71 @@ def preprocess_comment(comment):
         print(f"Error in preprocessing comment: {e}")
         return comment
 
-# Load the model and vectorizer from the model registry and local storage
-def load_model_and_vectorizer(model_name, model_version, vectorizer_path):
-    # Set MLflow tracking URI to your server
-    mlflow.set_tracking_uri("http://ec2-3-111-37-136.ap-south-1.compute.amazonaws.com:5000/")  # Replace with your MLflow tracking URI
+
+# Load the model and its ORIGINAL vectorizer from the same MLflow run
+
+def load_model_and_vectorizer(model_name, model_version):
+
+    mlflow.set_tracking_uri(
+        "http://ec2-3-111-37-136.ap-south-1.compute.amazonaws.com:5000/"
+    )
+
     client = MlflowClient()
+
+    # Step 1: Get the registered model version information
+    version_info = client.get_model_version(
+        name=model_name,
+        version=str(model_version)
+    )
+
+    # Step 2: Retrieve the original training run ID
+    run_id = version_info.run_id
+
+    print(f"Loading model version: {model_version}")
+    print(f"MLflow training run ID: {run_id}")
+
+    # Step 3: Load the registered model
     model_uri = f"models:/{model_name}/{model_version}"
+
     model = mlflow.pyfunc.load_model(model_uri)
-    vectorizer = joblib.load(vectorizer_path)  # Load the vectorizer
+
+    # Step 4: Download the EXACT vectorizer saved during this training run
+    vectorizer_path = client.download_artifacts(
+        run_id,
+        "tfidf_vectorizer.pkl"
+    )
+
+    # Step 5: Load the vectorizer
+    vectorizer = joblib.load(vectorizer_path)
+
+    # Step 6: Verify model and vectorizer feature compatibility
+    expected_features = model.metadata.get_input_schema().input_names()
+
+    actual_features = vectorizer.get_feature_names_out().tolist()
+
+    missing_features = set(expected_features) - set(actual_features)
+    extra_features = set(actual_features) - set(expected_features)
+
+    print("Model expected features:", len(expected_features))
+    print("Vectorizer actual features:", len(actual_features))
+
+    if missing_features or extra_features:
+        raise ValueError(
+            f"Model/vectorizer mismatch. "
+            f"Missing features: {list(missing_features)[:10]}. "
+            f"Extra features: {list(extra_features)[:10]}."
+        )
+
+    print("Model and vectorizer are compatible!")
+
     return model, vectorizer
 
+
 # Initialize the model and vectorizer
-model, vectorizer = load_model_and_vectorizer("yt_chrome_plugin_model", "13", "./tfidf_vectorizer.pkl")  # Update paths and versions as needed
+model, vectorizer = load_model_and_vectorizer(
+    "yt_chrome_plugin_model",
+    "13"
+)
 
 # Convert comments into the DataFrame format
 # expected by the MLflow model.
